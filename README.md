@@ -27,12 +27,12 @@ Build the loot line from a simple template such as `{amount} {icon} {name} {rari
 - Rename and recolour the rarities themselves
 
 ### Loot sessions that survive logouts
-Your current session is saved between logins and reloads. It only ends when you start a new one, so a farming run can span as many play sessions as you like. Each session tracks:
+Your current session is saved between logins and reloads. It only ends when you start a new one, so a farming run can span as many play sessions as you like. Prefer one session per login? Turn on **Start a new session at login** on the Sessions page (a `/reload` doesn't count). Each session tracks:
 
 - Every item looted, with counts, and money looted
 - Play time and gold per hour
 - Loot by rarity
-- **Gathering and opening counts**: chests, lockboxes, containers, herbs, mining nodes, gas clouds, skinned beasts, fish caught, pickpockets, disenchants, prospects and mills. Each one can be switched on or off.
+- **Gathering and opening counts**: chests, lockboxes, containers, herbs, mining nodes, skinned beasts, fish caught, pickpockets and disenchants. Each one can be switched on or off.
 
 ![Sessions settings](images/sessions-settings.png)
 
@@ -50,6 +50,19 @@ A small see-through window shows the current session at a glance: every item and
 ### History
 Finished sessions are kept in the History window, per character. You can browse, search, filter and sort their items, rename sessions, resume an old one, export one as text or delete it.
 
+### All-time overview
+PlunderScroll keeps a permanent record of everything you have ever looted. Explore it on the **Overview** tab, the first page you see in the settings (or type **`/ps overview`**). Drag the corner of the window to make it bigger; the item table shows more columns as it widens, and the size is remembered:
+
+![The Overview tab with totals, rarity breakdown and item table](images/overview.png)
+
+- Total gold, gold per hour, items, different items, time played and sessions, for all characters together or for one
+- Items by rarity, with their share of the total. Click a rarity to list only those items.
+- Lifetime counts of chests, lockboxes, herbs, mining nodes and everything else you gather or open
+- A table of every item: search by name or item ID, filter by item type and sort by name, rarity, amount, first looted or last looted
+- Hover an item to see how many each character looted and what it's all worth
+
+Your existing sessions are added to the record automatically the first time you log in. After that, deleting a session keeps its loot in the all-time totals, and session filters such as the minimum rarity don't apply. Only **Forget Character** in History removes a character's record.
+
 ---
 
 ## Getting started
@@ -60,7 +73,7 @@ Finished sessions are kept in the History window, per character. You can browse,
 
 To move the scrolling text, type `/ps unlock`, drag the highlighted area where you want it, then type `/ps lock`.
 
-You can also open PlunderScroll from the **addon compartment** on the minimap or from any **LibDataBroker** display (Titan Panel, ChocolateBar, ElvUI datatexts, ...). Left-click opens the settings and right-click opens History.
+You can also open PlunderScroll from the **addon compartment** on the minimap or from any **LibDataBroker** display (Titan Panel, ChocolateBar, ElvUI datatexts, ...). Left-click opens the settings, right-click opens History and Ctrl-click goes straight to the Overview tab.
 
 ## Commands
 
@@ -68,6 +81,7 @@ You can also open PlunderScroll from the **addon compartment** on the minimap or
 | --- | --- |
 | `/ps` | Open the settings |
 | `/ps history` | Open the session History |
+| `/ps overview` | Open the Overview tab with everything you've ever looted |
 | `/ps new [name]` | Archive the current session and start a new one |
 | `/ps stats` | Print the current session's totals to chat |
 | `/ps window` | Show or hide the session window |

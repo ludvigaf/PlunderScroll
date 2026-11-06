@@ -2,7 +2,7 @@
 ## Title: |cffffd100Plunder|r|cffffffffScroll|r
 ## Notes: Highly customisable scrolling loot text with persistent loot sessions and history.
 ## Author: Ludde
-## Version: 1.0.0
+## Version: 1.1.0
 ## SavedVariables: PlunderScrollDB
 ## OptionalDeps: LibSharedMedia-3.0, SharedMedia, SharedMediaAdditionalFonts, EllesmereUI, ElvUI, Details, Plater, WeakAuras, BigWigs, DBM-Core, TellMeWhen, Bartender4, Masque
 ## IconTexture: Interface\Icons\INV_Misc_Bag_10
@@ -19,3 +19,4 @@ SessionWindow.lua
 Widgets.lua
 Options.lua
 History.lua
+Overview.lua

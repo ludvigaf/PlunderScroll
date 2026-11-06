@@ -334,7 +334,10 @@ local function Build()
 
     frame.dTitle = Label(right, "GameFontNormalLarge")
     frame.dTitle:SetPoint("TOPLEFT", 14, -12)
-    frame.dTitle:SetPoint("RIGHT", -14, 0)
+    frame.dTitle:SetPoint("RIGHT", -110, 0)
+    local allTime = W.Button(right, "All-Time", 86, function() ns.Overview:Show() end)
+    allTime:SetPoint("TOPRIGHT", -12, -10)
+    W.Tooltip(allTime, "All-Time Overview", "Everything you have ever looted, across all sessions and characters.")
     frame.dSub = Label(right, "GameFontHighlightSmall")
     frame.dSub:SetPoint("TOPLEFT", frame.dTitle, "BOTTOMLEFT", 0, -4)
     frame.dStats = Label(right, "GameFontHighlight")
@@ -432,10 +435,10 @@ local function Build()
         if s and selIndex > 0 then
             StaticPopup_Show("PLUNDERSCROLL_DELETE", s.name, nil, { char = selChar, index = selIndex })
         end
-    end, "Delete this archived session.")
+    end, "Delete this archived session. Its loot stays in your all-time totals.")
     frame.bForget = Action("Forget Character", 130, function()
         StaticPopup_Show("PLUNDERSCROLL_FORGET", selChar, nil, selChar)
-    end, "Delete every session of this character.")
+    end, "Delete every session and the all-time totals of this character.")
 
     local opts = W.Button(right, "Options", 80, function() ns.Options:Show() end, 26)
     opts:SetPoint("BOTTOMRIGHT", -10, 12)
@@ -463,7 +466,7 @@ local function Build()
         timeout = 0, whileDead = true, hideOnEscape = true, preferredIndex = 3,
     }
     StaticPopupDialogs.PLUNDERSCROLL_DELETE = {
-        text = "Delete session \"%s\"?\nThis cannot be undone.",
+        text = "Delete session \"%s\"?\nIts loot stays in your all-time totals. This cannot be undone.",
         button1 = DELETE or "Delete",
         button2 = CANCEL or "Cancel",
         OnAccept = function(_, data)
@@ -474,7 +477,7 @@ local function Build()
         timeout = 0, whileDead = true, hideOnEscape = true, showAlert = true, preferredIndex = 3,
     }
     StaticPopupDialogs.PLUNDERSCROLL_FORGET = {
-        text = "Delete ALL PlunderScroll sessions of %s?\nThis cannot be undone.",
+        text = "Delete ALL PlunderScroll sessions and all-time totals of %s?\nThis cannot be undone.",
         button1 = DELETE or "Delete",
         button2 = CANCEL or "Cancel",
         OnAccept = function(_, data)

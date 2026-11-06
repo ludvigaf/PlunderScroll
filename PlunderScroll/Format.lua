@@ -45,6 +45,7 @@ local function Group(n)
     if n >= 1000 and BreakUpLargeNumbers then return BreakUpLargeNumbers(n) end
     return tostring(n)
 end
+F.Number = Group
 
 -- copper as 10g10s10c. style ICONS or LETTERS, size of coin icons (0 =
 -- text height), showZero keeps empty middle/trailing coins, space separates

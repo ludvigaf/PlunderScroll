@@ -9,7 +9,7 @@ ns.PS = PS
 _G.PlunderScroll = ns
 
 local GetMeta = (C_AddOns and C_AddOns.GetAddOnMetadata) or GetAddOnMetadata
-ns.version = (GetMeta and GetMeta(ADDON, "Version")) or "1.0.0"
+ns.version = (GetMeta and GetMeta(ADDON, "Version")) or "1.1.0"
 
 ns.GetItemInfo = (C_Item and C_Item.GetItemInfo) or GetItemInfo
 ns.GetItemInfoInstant = (C_Item and C_Item.GetItemInfoInstant) or GetItemInfoInstant
@@ -43,13 +43,10 @@ ns.COUNTERS = {
     { key = "containers", label = "Containers",   desc = "Clams, satchels and other items opened from your bags." },
     { key = "herbs",      label = "Herbs",        desc = "Herb nodes gathered." },
     { key = "ore",        label = "Mining nodes", desc = "Mining nodes mined (each node counts once, however many hits it takes)." },
-    { key = "gas",        label = "Gas clouds",   desc = "Gas clouds extracted." },
     { key = "skins",      label = "Skinned",      desc = "Beasts skinned." },
     { key = "fish",       label = "Fish caught",  desc = "Fishing catches." },
     { key = "pickpocket", label = "Pickpocketed", desc = "Successful pickpockets." },
     { key = "disenchant", label = "Disenchanted", desc = "Items disenchanted." },
-    { key = "prospect",   label = "Prospected",   desc = "Ore prospected." },
-    { key = "mill",       label = "Milled",       desc = "Herbs milled." },
 }
 
 -------------------------------------------------------------------------------
@@ -66,9 +63,10 @@ ns.DEFAULTS = {
     includePushed = true,   -- quest rewards and other items received directly
     includeCreated = false, -- crafted / conjured items
     minTrackQuality = 0,
+    newSessionOnLogin = false, -- not on /reload or zoning
     countTypes = {          -- [counter key] = false stops counting it
-        chests = true, lockboxes = true, containers = true, herbs = true, ore = true, gas = true,
-        skins = true, fish = true, pickpocket = true, disenchant = true, prospect = true, mill = true,
+        chests = true, lockboxes = true, containers = true, herbs = true, ore = true,
+        skins = true, fish = true, pickpocket = true, disenchant = true,
     },
     qualityShown = { [0] = true, [1] = true, [2] = true, [3] = true, [4] = true, [5] = true, [6] = true, [7] = true },
     qualityLabels = {},     -- [quality] = custom label
@@ -143,6 +141,10 @@ ns.DEFAULTS = {
     swShowChests = true,
     swPos = { point = "RIGHT", relPoint = "RIGHT", x = -60, y = 120 },
 
+    -- Options window, resized with its grip
+    optWidth = 1128,
+    optHeight = 640,
+
     -- Frame
     width = 360,
     scale = 1,
@@ -195,6 +197,7 @@ end
 -- Tracked data changed (loot, new session, rename ...).
 function ns.FireUpdate()
     if ns.History and ns.History.OnDataChanged then ns.History:OnDataChanged() end
+    if ns.Overview and ns.Overview.OnDataChanged then ns.Overview:OnDataChanged() end
     if ns.SessionWindow and ns.SessionWindow.OnDataChanged then ns.SessionWindow:OnDataChanged() end
     if ns.Options and ns.Options.OnDataChanged then ns.Options:OnDataChanged() end
 end
@@ -293,11 +296,14 @@ local function ResolveItem(link, id, callback)
     Fallback()
 end
 
-function ns.HandleItem(link, amount)
+-- recordOnly: keep it in the all-time ledger, but not in the session or display.
+function ns.HandleItem(link, amount, recordOnly)
     local key, id = ItemKey(link)
     if not key then return end
     ResolveItem(link, id, function(name, quality, icon)
         local db = ns.db
+        ns.Tracker:RecordItem(key, id, link, name, quality, icon, amount)
+        if recordOnly then return end
         local total
         if quality >= (db.minTrackQuality or 0) then
             total = ns.Tracker:AddItem(key, id, link, name, quality, icon, amount)
@@ -323,9 +329,9 @@ local function OnLootMessage(text)
         local link, count = Match(entry.key, text)
         if link then
             if not link:find("|Hitem:", 1, true) then return end
-            if entry.kind == "pushed" and not ns.db.includePushed then return end
+            -- Crafted items only count as loot when asked for; received items always do.
             if entry.kind == "created" and not ns.db.includeCreated then return end
-            ns.HandleItem(link, tonumber(count) or 1)
+            ns.HandleItem(link, tonumber(count) or 1, entry.kind == "pushed" and not ns.db.includePushed)
             return
         end
     end
@@ -391,15 +397,10 @@ local GATHER_SPELLS = {
     herbs      = { 2366, 2368, 3570, 11993, 28695, 50300 },        -- Herb Gathering
     ore        = { 2575, 2576, 3564, 10248, 29354, 32606, 50310 }, -- Mining
     skins      = { 8613, 8617, 8618, 10768, 32678, 50305 },        -- Skinning
-    gas        = { 30427 },                                        -- Extract Gas
     fish       = { 7620, 7731, 7732, 18248, 33095, 51294 },        -- Fishing
     pickpocket = { 921 },                                          -- Pick Pocket
     disenchant = { 13262 },
-    prospect   = { 31252 },
-    mill       = { 51005 },
 }
--- Counted when the cast succeeds: the gas goes straight to the bags.
-local COUNT_ON_CAST = { gas = true }
 
 local spellCategory -- spell ID / localized name -> counter key
 local lastSpell, lastSpellName, lastSpellTime = nil, nil, 0
@@ -428,6 +429,7 @@ local function SpellCategory(id, name)
 end
 
 local function Count(key)
+    ns.Tracker:RecordCount(key)
     if ns.db.countTypes[key] == false then return end
     ns.Tracker:AddCount(key)
 end
@@ -435,11 +437,6 @@ end
 local function OnSpellSucceeded(spellID)
     if IsSecret(spellID) or type(spellID) ~= "number" then return end
     lastSpell, lastSpellName, lastSpellTime = spellID, SpellName(spellID), GetTime()
-    local cat = SpellCategory(lastSpell, lastSpellName)
-    if cat and COUNT_ON_CAST[cat] then
-        spellUsed = lastSpellTime
-        Count(cat)
-    end
 end
 
 local function LootSource()
@@ -530,6 +527,15 @@ PS:SetScript("OnEvent", function(self, event, ...)
         self:RegisterEvent("LOOT_OPENED")
         self:RegisterEvent("LOOT_CLOSED")
         self:RegisterUnitEvent("UNIT_SPELLCAST_SUCCEEDED", "player")
+        self:RegisterEvent("PLAYER_ENTERING_WORLD")
+    elseif event == "PLAYER_ENTERING_WORLD" then
+        -- Only this event tells a real login from a /reload; PLAYER_LOGIN fires for both.
+        self:UnregisterEvent("PLAYER_ENTERING_WORLD")
+        local isInitialLogin = ...
+        if isInitialLogin and ns.db.newSessionOnLogin then
+            -- The old session ended when its last loot came in, not at this login.
+            ns.Tracker:StartNew(nil, ns.Tracker:Current().lastActivity)
+        end
         if ns.db.loginMessage then
             local cur = ns.Tracker:Current()
             ns.Print("v%s loaded. Session |cffffffff%s|r is active (%s). Type |cffffd100/ps|r for options.",
@@ -554,7 +560,13 @@ end)
 --  Launchers: addon compartment and LibDataBroker
 -------------------------------------------------------------------------------
 local function LauncherClick(button)
-    if button == "RightButton" or IsShiftKeyDown() then ns.History:Toggle() else ns.Options:Toggle() end
+    if IsControlKeyDown() then
+        ns.Overview:Toggle()
+    elseif button == "RightButton" or IsShiftKeyDown() then
+        ns.History:Toggle()
+    else
+        ns.Options:Toggle()
+    end
 end
 
 local function LauncherTooltip(tt)
@@ -567,6 +579,7 @@ local function LauncherTooltip(tt)
     end
     tt:AddLine(" ")
     tt:AddLine("|cffffffffLeft-click|r options, |cffffffffRight-click|r history", 0.7, 0.7, 0.7)
+    tt:AddLine("|cffffffffCtrl-click|r all-time overview", 0.7, 0.7, 0.7)
 end
 
 function PlunderScroll_OnAddonCompartmentClick(_, button) LauncherClick(button) end
@@ -594,6 +607,7 @@ end
 local HELP = {
     "|cffffd100/ps|r - open options",
     "|cffffd100/ps history|r - open the session history",
+    "|cffffd100/ps overview|r - open the all-time overview of everything you've looted",
     "|cffffd100/ps new [name]|r - archive the current session and start a new one",
     "|cffffd100/ps stats|r - print the current session totals",
     "|cffffd100/ps window|r - toggle the session window",
@@ -612,6 +626,8 @@ SlashCmdList.PLUNDERSCROLL = function(msg)
         ns.Options:Toggle()
     elseif cmd == "history" or cmd == "h" then
         ns.History:Toggle()
+    elseif cmd == "overview" or cmd == "all" or cmd == "alltime" then
+        ns.Overview:Toggle()
     elseif cmd == "new" then
         ns.Tracker:StartNew(rest ~= "" and rest or nil)
     elseif cmd == "stats" then

@@ -7,7 +7,7 @@ local O = {}
 ns.Options = O
 
 local W = ns.W
-local frame, pages, tabs, current = nil, {}, {}, nil
+local frame, pages, tabs, current, sessionsPage = nil, {}, {}, nil, nil
 
 local function G(key) return function() return ns.db[key] end end
 local function S(key) return function(v) ns.db[key] = v; ns.RefreshAll() end end
@@ -83,15 +83,16 @@ local function BuildGeneral(p)
     p:Check("Show looted items", G("showItems"), S("showItems"))
     p:Check("Show looted money", G("showMoney"), S("showMoney"))
     p:Check("Include quest rewards / received items", G("includePushed"), S("includePushed"),
-        "Items put straight into your bags (quest rewards, mail-less pushes). Affects both the display and tracking.")
+        "Items put straight into your bags (quest rewards, mail-less pushes). Affects the display and sessions; the all-time overview always keeps them.")
     p:Check("Include crafted / created items", G("includeCreated"), S("includeCreated"),
-        "Items you create (crafting, conjuring). Affects both the display and tracking.")
+        "Items you create (crafting, conjuring). Affects the display, sessions and the all-time overview.")
     p:Check("Login message", G("loginMessage"), S("loginMessage"))
     p:Buttons({
         { "Test", function() ns.Test() end, 100, "Show sample loot in the scroll area." },
         { "Toggle Lock", function() ns.db.locked = not ns.db.locked; ns.RefreshAll() end, 110 },
         { "Reset Position", function() ns.db.pos = ns.CopyDefaults(ns.DEFAULTS.pos, {}); ns.RefreshAll() end, 120 },
         { "History", function() ns.History:Show() end, 100 },
+        { "Overview", function() ns.Overview:Show() end, 100, "Everything you have ever looted." },
     })
 
     p:Header("Frame")
@@ -291,14 +292,16 @@ local function BuildSessions(p)
             "Archive the current session to History and start counting from zero." },
         { "Open History", function() ns.History:Show() end, 130 },
     })
-    p:Text("Your current session is saved between logins and reloads. It only ends when you start a new one; the old session is then kept in History, where you can view, rename, export, resume or delete it.", 44)
+    p:Text("Your current session is saved between logins and reloads. It only ends when you start a new one, or at your next login if you turn that on below. The old session is then kept in History, where you can view, rename, export, resume or delete it.", 44)
 
     p:Header("Tracking")
+    p:Check("Start a new session at login", G("newSessionOnLogin"), S("newSessionOnLogin"),
+        "Each time you log in, archive the current session to History and start a new one. Applies to all your characters. A /reload doesn't count as a login.")
     p:Dropdown("Track items of at least", QUALITY_CHOICES, G("minTrackQuality"), S("minTrackQuality"),
-        "Lower rarities are not counted in sessions (they may still scroll).")
+        "Lower rarities are not counted in sessions (they may still scroll, and the all-time overview always keeps them).")
 
     p:Header("Gathering & opening")
-    p:Text("Count what you gather and open in each session. Unticking stops new counts; counts already in a session are kept.", 30)
+    p:Text("Count what you gather and open in each session. Unticking stops new counts in sessions; counts already in a session are kept, and the all-time overview keeps counting.", 30)
     for _, c in ipairs(ns.COUNTERS) do
         p:Check(c.label, function() return ns.db.countTypes[c.key] ~= false end,
             function(v) ns.db.countTypes[c.key] = v; ns.RefreshAll() end, c.desc)
@@ -337,6 +340,7 @@ local function BuildSessionWindow(p)
 end
 
 local PAGES = {
+    { "Overview", createPage = function(body) return ns.Overview:CreatePage(body) end },
     { "General", BuildGeneral },
     { "Text & Format", BuildText },
     { "Font & Colours", BuildFont },
@@ -358,8 +362,52 @@ local function SelectPage(i)
     current = pages[i]
 end
 
+-- The smallest size is what the settings pages need; they don't stretch beyond it.
+local MIN_W, MIN_H, MAX_W, MAX_H = 800, 600, 1800, 1200
+
+local function AddResizeGrip()
+    frame:SetResizable(true)
+    if frame.SetResizeBounds then
+        frame:SetResizeBounds(MIN_W, MIN_H, MAX_W, MAX_H)
+    elseif frame.SetMinResize then
+        frame:SetMinResize(MIN_W, MIN_H)
+        frame:SetMaxResize(MAX_W, MAX_H)
+    end
+    local grip = CreateFrame("Button", nil, frame)
+    grip:SetSize(16, 16)
+    grip:SetPoint("BOTTOMRIGHT", -1, 1)
+    grip:SetFrameLevel(frame:GetFrameLevel() + 20)
+    grip:SetNormalTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Up")
+    grip:SetHighlightTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Highlight")
+    grip:SetPushedTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Down")
+    grip:SetScript("OnMouseDown", function(_, button)
+        if button ~= "LeftButton" then return end
+        -- Size from a top-left anchor so the top-left corner stays put.
+        local left, top = frame:GetLeft(), frame:GetTop()
+        frame:ClearAllPoints()
+        frame:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", left, top)
+        frame.sizing = true
+        frame:StartSizing("BOTTOMRIGHT")
+    end)
+    grip:SetScript("OnMouseUp", function()
+        if not frame.sizing then return end
+        frame:StopMovingOrSizing()
+        frame.sizing = false
+        ns.db.optWidth = math.floor(frame:GetWidth() + 0.5)
+        ns.db.optHeight = math.floor(frame:GetHeight() + 0.5)
+    end)
+    grip:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:SetText("Drag to resize")
+        GameTooltip:Show()
+    end)
+    grip:SetScript("OnLeave", function() GameTooltip:Hide() end)
+end
+
 local function Build()
-    frame = W.Window("PlunderScrollOptions", "|cffffd100Plunder|rScroll  |cff888888v" .. ns.version .. "|r", 800, 600)
+    frame = W.Window("PlunderScrollOptions", "|cffffd100Plunder|rScroll  |cff888888v" .. ns.version .. "|r",
+        ns.db.optWidth, ns.db.optHeight)
+    AddResizeGrip()
 
     local side = CreateFrame("Frame", nil, frame, "BackdropTemplate")
     side:SetPoint("TOPLEFT", 10, -40)
@@ -378,25 +426,35 @@ local function Build()
         tab:SetScript("OnLeave", nil)
         tab:SetScript("OnEnter", nil)
         tabs[i] = tab
-        local pg = W.NewPage(body)
-        def[2](pg)
+        local pg
+        if def.createPage then
+            pg = def.createPage(body)
+        else
+            pg = W.NewPage(body)
+            def[2](pg)
+        end
         pages[i] = pg
+        if def[1] == "Sessions" then sessionsPage = pg end
     end
     SelectPage(1)
 end
 
 function O:Refresh()
-    if frame and frame:IsShown() and current then current:Refresh() end
+    if not (frame and frame:IsShown()) then return end
+    -- Reset All Settings also resets the size.
+    if not frame.sizing then frame:SetSize(ns.db.optWidth, ns.db.optHeight) end
+    if current then current:Refresh() end
 end
 
 function O:OnDataChanged()
-    if frame and frame:IsShown() and current == pages[6] then current:Refresh() end
+    if frame and frame:IsShown() and current == sessionsPage then current:Refresh() end
 end
 
 -- pageName (optional) opens that tab, e.g. "Session Window".
 function O:Show(pageName)
     if not frame then Build() end
     frame:Show()
+    frame:Raise()
     if pageName then
         for i, def in ipairs(PAGES) do
             if def[1] == pageName then SelectPage(i) end
@@ -407,6 +465,19 @@ end
 
 function O:Toggle()
     if frame and frame:IsShown() then frame:Hide() else self:Show() end
+end
+
+function O:Hide()
+    if frame then frame:Hide() end
+end
+
+-- Whether the window is open on that tab.
+function O:IsShowing(pageName)
+    if not (frame and frame:IsShown()) then return false end
+    for i, def in ipairs(PAGES) do
+        if def[1] == pageName then return current == pages[i] end
+    end
+    return false
 end
 
 -------------------------------------------------------------------------------
@@ -463,6 +534,11 @@ function O:Init()
             ns.History:Show()
         end, 26)
         h:SetPoint("LEFT", b, "RIGHT", 8, 0)
+        local o = W.Button(panel, "All-Time Overview", 160, function()
+            if SettingsPanel and SettingsPanel:IsShown() then HideUIPanel(SettingsPanel) end
+            ns.Overview:Show()
+        end, 26)
+        o:SetPoint("LEFT", h, "RIGHT", 8, 0)
         local category = Settings.RegisterCanvasLayoutCategory(panel, "PlunderScroll")
         Settings.RegisterAddOnCategory(category)
     end
