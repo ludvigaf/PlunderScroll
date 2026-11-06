@@ -107,4 +107,4 @@ Fonts from other addons appear once that addon has loaded. Click **Rescan Fonts*
 
 ---
 
-Made by Ludde. Bug reports and suggestions are welcome in the GitHub issues.
+Made by Ludvigaf. Bug reports and suggestions are welcome in the GitHub issues.

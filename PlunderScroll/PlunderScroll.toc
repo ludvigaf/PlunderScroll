@@ -1,7 +1,7 @@
 ## Interface: 16001
 ## Title: |cffffd100Plunder|r|cffffffffScroll|r
 ## Notes: Highly customisable scrolling loot text with persistent loot sessions and history.
-## Author: Ludde
+## Author: Ludvigaf
 ## Version: 1.1.0
 ## SavedVariables: PlunderScrollDB
 ## OptionalDeps: LibSharedMedia-3.0, SharedMedia, SharedMediaAdditionalFonts, EllesmereUI, ElvUI, Details, Plater, WeakAuras, BigWigs, DBM-Core, TellMeWhen, Bartender4, Masque
